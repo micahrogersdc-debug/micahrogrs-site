@@ -1,0 +1,42 @@
+name: 🚀 Deploy to Hetzner (micahrogrs.com)
+
+on:
+  push:
+    branches:
+      - main  # triggers when you push to main
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: 🧩 Checkout code
+        uses: actions/checkout@v4
+
+      - name: 🔐 Set up SSH
+        uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
+
+      - name: 🚀 Deploy to Hetzner Server
+        env:
+          SERVER_USER: ${{ secrets.SERVER_USER }}
+          SERVER_HOST: ${{ secrets.SERVER_HOST }}
+        run: |
+          echo "Connecting to $SERVER_USER@$SERVER_HOST..."
+          ssh -o StrictHostKeyChecking=no $SERVER_USER@$SERVER_HOST << 'EOF'
+            set -e
+            cd ~/micahrogrs
+            echo "🔄 Pulling latest from GitHub..."
+            git fetch origin main
+            git reset --hard origin/main
+            echo "🏗️  Building site..."
+            npm install --legacy-peer-deps
+            npm run build
+            echo "📦 Deploying build to /var/www/micahrogrs..."
+            sudo rm -rf /var/www/micahrogrs/*
+            sudo cp -r out/* /var/www/micahrogrs/ 2>/dev/null || sudo cp -r .next/static/* /var/www/micahrogrs/
+            sudo chown -R www-data:www-data /var/www/micahrogrs
+            sudo systemctl reload nginx
+            echo "✅ micahrogrs.com deployed successfully at $(date)"
+          EOF
